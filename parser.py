@@ -1,14 +1,14 @@
 import ply.yacc as yacc
 from lexer import tokens
-from function import Function, Program, IdTable
+from function import Function, Program, SymbolTable
 from util import *
 
 # プログラム全体
 _program = None
 
 #  仮の識別子表
-_global_idtable = None
-_func_idtable = None
+_global_symtable = None
+_func_symtable = None
 
 # 関数の入り口のラベル名
 function_entry = '__entry'
@@ -17,7 +17,7 @@ function_entry = '__entry'
 def newvar():
     newvar.counter += 1
     var = '.temp{}'.format(newvar.counter)
-    _func_idtable.add_id(var, 'temp')
+    _func_symtable.add_sym(var, 'temp')
     return ['id', var]
 
 newvar.counter = -1
@@ -26,7 +26,7 @@ newvar.counter = -1
 def newlabel():
     newlabel.counter += 1
     label = 'label{}'.format(newlabel.counter)
-    _func_idtable.add_id(label, 'label')
+    _func_symtable.add_sym(label, 'label')
     return ['label', label]
 
 newlabel.counter = -1
@@ -63,7 +63,7 @@ def pop_copy_inst(insts):
             # このとき代入先の一時変数を辞書から削除する。
             inst = insts.pop(i)
             if is_id(left(inst)):
-                _func_idtable.delete_id(id_name(left(inst)))
+                _func_symtable.delete_sym(id_name(left(inst)))
             return right(inst, 1)
     else:
         return None
@@ -88,7 +88,7 @@ def shrink(insts):
                         inst[pos] = copy_right
                         
             # 置換元変数は不要になったので識別子表から削除する。
-            _func_idtable.delete_id(id_name(copy_left))
+            _func_symtable.delete_sym(id_name(copy_left))
     return insts
 
 # 文法の開始記号
@@ -99,7 +99,7 @@ def p_func_def_list(p):
     '''func_def_list : func_def
                      | func_def_list func_def'''
     global _program
-    global _func_idtable
+    global _func_symtable
 
     if len(p) == 2:
         func = p[1]
@@ -110,11 +110,11 @@ def p_func_def_list(p):
         _program = Program()
     func.program = _program
     _program.func_list.append(func)
-    _global_idtable.add_id(func.name, 'func', {'type': func.ftype})
-    _func_idtable.scope = func.name
+    _global_symtable.add_sym(func.name, 'func', {'type': func.ftype})
+    _func_symtable.scope = func.name
 
     # 状態をリセットし、次のパースに備える。
-    _func_idtable = IdTable('.temp')
+    _func_symtable = SymbolTable('.temp')
     newvar.counter = -1
     newlabel.counter = -1
     p[0] = _program
@@ -125,10 +125,10 @@ def p_func_def(p):
                 | type_spec ID LPAREN param_list RPAREN compound_stat'''
     p[0] = None
     if len(p) == 6:
-        p[0] = Function(p[2], p[1][1], [], function_entry, _func_idtable, p[5])
+        p[0] = Function(p[2], p[1][1], [], function_entry, _func_symtable, p[5])
     elif len(p) == 7:
-        p[0] = Function(p[2], p[1][1], p[4], function_entry, _func_idtable, p[6])
-    _func_idtable.add_id(function_entry, 'label')
+        p[0] = Function(p[2], p[1][1], p[4], function_entry, _func_symtable, p[6])
+    _func_symtable.add_sym(function_entry, 'label')
     p[0].entry = function_entry
     
 def p_param_list(p):
@@ -142,7 +142,7 @@ def p_param_list(p):
 def p_param(p):
     'param : type_spec ID'
     p[0] = [[p[1], ['id', p[2]]]]
-    _func_idtable.add_id(p[2], 'param', {'type': p[1][1]})
+    _func_symtable.add_sym(p[2], 'param', {'type': p[1][1]})
 
 def p_type_spec(p):
     'type_spec : INT'
@@ -173,7 +173,7 @@ def p_decl_list(p):
 def p_decl(p):
     'decl : type_spec ID SEMI'
     p[0] = [[['id', p[2]], 'deflocal', p[1]]]
-    _func_idtable.add_id(p[2], 'localvar', {'type': p[1][1]})
+    _func_symtable.add_sym(p[2], 'localvar', {'type': p[1][1]})
 
 def p_stat_list(p):
     '''stat_list : stat
@@ -201,7 +201,7 @@ def p_assignment_stat(p):
         # 最後の文の左辺を代入文の左辺に置き換える。
         # 置き換える元の変数名は識別子表から削除する。
         last_inst = p[0][-1]
-        _func_idtable.delete_id(id_name(left(last_inst)))
+        _func_symtable.delete_sym(id_name(left(last_inst)))
         set_tval(left(last_inst), p[1])
 
 def p_while_stat(p):
@@ -366,22 +366,22 @@ def p_error(p):
 # 入力された文字列を構文解析する。
 # 解析した結果のプログラムデータを返す。
 def parse(data, debug=False):
-    global _func_idtable
-    global _global_idtable
+    global _func_symtable
+    global _global_symtable
     global _program
     
-    _global_idtable = IdTable('.global')
+    _global_symtable = SymbolTable('.global')
 
     # 関数スコープの識別子表名はfunc_defを還元しときに確定するので、
     # ここでは仮に.tempとしておく
-    _func_idtable = IdTable('.temp')
+    _func_symtable = SymbolTable('.temp')
 
     parser = yacc.yacc()
     _program = parser.parse(data, debug)
     if _program is not None:
-        _program.idtable = _global_idtable
+        _program.symtable = _global_symtable
     
     # 使われなかった一時識別子表をゴミ集めの対象にする。
-    _func_idtable = None
+    _func_symtable = None
     
     return _program

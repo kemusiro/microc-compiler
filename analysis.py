@@ -32,7 +32,7 @@ def divide_into_blocks(f):
         f.bbtable[cur_label].insts.append(cur_inst)
         # 代入文の左辺の変数が属する基本ブロックを登録する。
         if is_id(left(cur_inst)):
-            f.idtable.set_id(id_name(left(cur_inst)), {'bb': cur_label})
+            f.symtable.set_sym(id_name(left(cur_inst)), {'bb': cur_label})
         prev_inst = cur_inst
 
     # 基本ブロック末尾の命令を調整する。
@@ -54,8 +54,8 @@ def divide_into_blocks(f):
     # 関数は必ず出口ブロックで終了するものとする。
     # したがって関数中のすべてのreturn文は出口ブロックに一度分岐する。
     # 返却値は特別な変数'.retval'に代入しておくものとする。
-    f.idtable.add_id(f.end, 'label')
-    f.idtable.add_id('.retval', 'localvar', {'type': f.ftype, 'bb': f.end })
+    f.symtable.add_sym(f.end, 'label')
+    f.symtable.add_sym('.retval', 'localvar', {'type': f.ftype, 'bb': f.end })
     f.bbtable[f.entry].insts.insert(
         1, [['id', '.retval'], 'deflocal', ['type', f.ftype]])
     f.bbtable['__end'] = BasicBlock(f.end)
@@ -77,7 +77,7 @@ def divide_into_blocks(f):
     find_connected_block(f.entry, result)
     f.bbtable = {k:v for k, v in f.bbtable.items() if k in result}
     for bb in all_bbs - result:
-        f.idtable.delete_id(bb)
+        f.symtable.delete_sym(bb)
     
     # 先行ブロックの接続
     for bbname in f.bbtable.keys():
@@ -218,7 +218,7 @@ def insert_phi_functions(f):
     # 局所変数('localvar')と関数引数('param')が定義される基本ブロックを列挙する。
     # 現在の仕様ではlocalvarとparamはエントリブロックにしかないはず。
     defbb = {}
-    for var in f.idtable.id_enumerator(kind=('localvar', 'param')):
+    for var in f.symtable.sym_enumerator(kind=('localvar', 'param')):
         defbb[var] = [b for b, battr in f.bbtable.items() for i in battr.insts
                       if is_id(left(i)) and tval(left(i)) == var]
     inserted = {x:None for x in f.bbtable.keys()}
@@ -269,8 +269,8 @@ def search(f, stack, counter, bbname):
             lterm = left(i)
             old_name = lterm[1]
             new_name = '{}.{}'.format(lterm[1], counter[old_name])
-            f.idtable.add_id(new_name, 'ssavar',
-                             {'type': f.idtable.get_id(old_name, 'type'),
+            f.symtable.add_sym(new_name, 'ssavar',
+                             {'type': f.symtable.get_sym(old_name, 'type'),
                               'bb': bbname,
                               'origin': old_name})
             stack[old_name].append(counter[old_name])
@@ -295,16 +295,16 @@ def search(f, stack, counter, bbname):
             search(f, stack, counter, child)
 
     # 元の左辺の変数に対するスタックを1つ戻す。
-    ssavars = [k for k in f.idtable.id_enumerator(kind='ssavar')]
+    ssavars = [k for k in f.symtable.sym_enumerator(kind='ssavar')]
     for i in f.bbtable[bbname].insts:
         if is_id(left(i)) and id_name(left(i)) in ssavars:
-            stack[f.idtable.get_id(id_name(left(i)), 'origin')].pop()
+            stack[f.symtable.get_sym(id_name(left(i)), 'origin')].pop()
 
 # SSA形式の命令列に対して変数名の置き換え、SSA形式として完成させる。
 def rename_variables(f):
-    stack = {var: [0] for var in f.idtable.id_enumerator(
+    stack = {var: [0] for var in f.symtable.sym_enumerator(
         kind=('localvar', 'param', 'temp'))}
-    counter = {var: 1 for var in f.idtable.id_enumerator(
+    counter = {var: 1 for var in f.symtable.sym_enumerator(
         kind=('localvar', 'param', 'temp'))}
     search(f, stack, counter, f.entry)
 
@@ -319,10 +319,10 @@ def rename_variables(f):
 # 項の型を求める。
 def get_term_type(f, term):
     if is_id(term):
-        if f.idtable.get_id(id_name(term)):
-            return f.idtable.get_id(id_name(term), 'type')
+        if f.symtable.get_sym(id_name(term)):
+            return f.symtable.get_sym(id_name(term), 'type')
         else:
-            return f.program.idtable.get_id(id_name(term), 'type')
+            return f.program.symtable.get_sym(id_name(term), 'type')
     elif is_num(term):
         # 数値はすべてintとする。
         return 'int'
@@ -347,7 +347,7 @@ def set_type(f, block):
                 if t1 != t2:
                     print('WARNING: type mismatch: {}(), {}()'
                           .format(right(i, 1), t1, right(i, 2), t2))
-                f.idtable.set_id(id_name(left(i)), {'type': t1})
+                f.symtable.set_sym(id_name(left(i)), {'type': t1})
             elif op(i) in ('<', '<=', '>', '>=', '==', '!='):
                 # 右辺が比較式の場合は式の結果はboolean型とする。
                 t1 = get_term_type(f, right(i, 1))
@@ -355,15 +355,15 @@ def set_type(f, block):
                 if t1 != t2:
                     print('WARNING: type mismatch: {}(), {}()'
                           .format(right(i, 1), t1, right(i, 2), t2))
-                f.idtable.set_id(id_name(left(i)), {'type': 'boolean'})
+                f.symtable.set_sym(id_name(left(i)), {'type': 'boolean'})
             elif op(i) in ('unary_minus', '='):
                 # 単項演算子またはコピー文の場合
                 t1 = get_term_type(f, right(i, 1))
-                f.idtable.set_id(id_name(left(i)), {'type': t1})
+                f.symtable.set_sym(id_name(left(i)), {'type': t1})
             elif op(i) == 'call':
                 # 関数呼び出しの場合
                 t1 = get_term_type(f, right(i, 1))
-                f.idtable.set_id(id_name(left(i)), {'type': t1})
+                f.symtable.set_sym(id_name(left(i)), {'type': t1})
 
 # 型解析を実施する。
 # 支配木情報を利用するため、支配木の計算が終わった後に実行する必要がある。

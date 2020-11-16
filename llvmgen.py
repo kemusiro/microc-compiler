@@ -2,10 +2,10 @@ from util import *
 
 # 項に対するLLM表現を返す。
 def llvm_id(func, value):
-    if func.idtable.get_id(value) is not None:
-        return func.idtable.get_id(value, 'llvm_name')
-    elif func.program.idtable.get_id(value) is not None:
-        return func.program.idtable.get_id(value, 'llvm_name')
+    if func.symtable.get_sym(value) is not None:
+        return func.symtable.get_sym(value, 'llvm_name')
+    elif func.program.symtable.get_sym(value) is not None:
+        return func.program.symtable.get_sym(value, 'llvm_name')
     else:
         return None
 
@@ -36,7 +36,7 @@ def create_phi_arg(func, terms):
     result = []
     for pos, t in enumerate(terms):
         if is_id(t):
-            bb = func.idtable.get_id(id_name(t), 'bb')
+            bb = func.symtable.get_sym(id_name(t), 'bb')
             result.append([llvm_term(func, t),
                            '%{}'.format(llvm_label(func, bb))])
         elif is_num(t):
@@ -118,18 +118,18 @@ def gen_inst(func, inst, result):
 # LLVM IRを生成する。
 def llvmgen(p):
     # LLVM IRの命名規則にしたがった識別子名を登録する。
-    for item in p.idtable.id_enumerator(kind='func'):
-        p.idtable.set_id(item, {'llvm_name': '@{}'.format(item)})
+    for item in p.symtable.sym_enumerator(kind='func'):
+        p.symtable.set_sym(item, {'llvm_name': '@{}'.format(item)})
     for func in p.func_list:
         counter = 0
-        idtable = func.idtable
-        for item in func.idtable.id_enumerator(kind='ssavar'):
-            origin = func.idtable.get_id(item, 'origin')
-            if func.idtable.get_id(origin, 'kind') == 'temp':
-                func.idtable.set_id(item, {'llvm_name': '%{}'.format(counter)})
+        symtable = func.symtable
+        for item in func.symtable.sym_enumerator(kind='ssavar'):
+            origin = func.symtable.get_sym(item, 'origin')
+            if func.symtable.get_sym(origin, 'kind') == 'temp':
+                func.symtable.set_sym(item, {'llvm_name': '%{}'.format(counter)})
                 counter += 1
-            elif func.idtable.get_id(origin, 'kind') in ('localvar', 'param'):
-                func.idtable.set_id(item, {'llvm_name': '%{}'.format(item)})
+            elif func.symtable.get_sym(origin, 'kind') in ('localvar', 'param'):
+                func.symtable.set_sym(item, {'llvm_name': '%{}'.format(item)})
 
     result = []
     # 各関数のLLVM IRを出力する。

@@ -55,7 +55,7 @@ def type_name(term):
     return tval(term)
 
 def id_type(func, term):
-    return func.idtable.get_id(id_name(term), 'type')
+    return func.symtable.get_sym(id_name(term), 'type')
 
 def num_type(func, term):
     # 数値の型は仕様からint固定とする。

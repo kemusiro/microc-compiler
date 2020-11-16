@@ -44,13 +44,17 @@ if __name__ == '__main__':
     else:
         with open(args[1]) as f:
             source = f.read()
-            program = irgen(source)
-            result = llvmgen(program)
             
-        base = os.path.splitext(args[1])[0]
-        with open(base + '.ll', mode='w') as f:
+        program = irgen(source)
+        result = llvmgen(program)
+
+        dirname, filename = os.path.split(sys.argv[1])
+        basename = os.path.splitext(filename)[0]
+        with open('{}{}{}.ll'
+                  .format(dirname, os.path.sep, basename), mode='w') as f:
             f.writelines('\n'.join(result))
 
         runtime_c = create_main(program)
-        with open('main-{}'.format(base) + '.c', mode='w') as f:
+        with open('{}{}main-{}.c'
+                  .format(dirname, os.path.sep, basename), mode='w') as f:
             f.writelines(runtime_c)

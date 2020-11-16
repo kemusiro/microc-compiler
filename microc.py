@@ -46,15 +46,16 @@ if __name__ == '__main__':
             source = f.read()
             
         program = irgen(source)
-        result = llvmgen(program)
+        if program is not None:
+            result = llvmgen(program)
 
-        dirname, filename = os.path.split(sys.argv[1])
-        basename = os.path.splitext(filename)[0]
-        with open('{}{}{}.ll'
-                  .format(dirname, os.path.sep, basename), mode='w') as f:
-            f.writelines('\n'.join(result))
+            dirname, filename = os.path.split(sys.argv[1])
+            basename = os.path.splitext(filename)[0]
+            with open('{}{}{}.ll'
+                      .format(dirname, os.path.sep, basename), mode='w') as f:
+                f.writelines('\n'.join(result))
 
-        runtime_c = create_main(program)
-        with open('{}{}main-{}.c'
-                  .format(dirname, os.path.sep, basename), mode='w') as f:
-            f.writelines(runtime_c)
+            runtime_c = create_main(program)
+            with open('{}{}main-{}.c'
+                      .format(dirname, os.path.sep, basename), mode='w') as f:
+                f.writelines(runtime_c)

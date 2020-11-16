@@ -399,13 +399,14 @@ def copy_propagation(f):
 # 構文解析した結果の命令列をSSA形式の内部表現に変換する。
 def irgen(source):
     program = parse(source, debug=False)
-    for func in program.func_list:
-        divide_into_blocks(func)
-        calc_dom(func)
-        calc_idom(func)
-        calc_df(func)
-        type_analysis(func)
-        insert_phi_functions(func)
-        rename_variables(func)
-        copy_propagation(func)
+    if program is not None:
+        for func in program.func_list:
+            divide_into_blocks(func)
+            calc_dom(func)
+            calc_idom(func)
+            calc_df(func)
+            type_analysis(func)
+            insert_phi_functions(func)
+            rename_variables(func)
+            copy_propagation(func)
     return program

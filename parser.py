@@ -356,6 +356,13 @@ def p_primary_expr_paren(p):
     'primary_expr : RPAREN expr LPAREN'
     p[0] = p[1]
 
+def p_error(p):
+    if p:
+        print("Syntax error at token '{}' at line {}, pos {}"
+              .format(p.value, p.lineno, p.lexpos))
+    else:
+        print('Syntax error at EOF')
+        
 # 入力された文字列を構文解析する。
 # 解析した結果のプログラムデータを返す。
 def parse(data, debug=False):
@@ -371,7 +378,8 @@ def parse(data, debug=False):
 
     parser = yacc.yacc()
     _program = parser.parse(data, debug)
-    _program.idtable = _global_idtable
+    if _program is not None:
+        _program.idtable = _global_idtable
     
     # 使われなかった一時識別子表をゴミ集めの対象にする。
     _func_idtable = None

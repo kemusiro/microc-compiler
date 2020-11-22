@@ -168,7 +168,7 @@ table = 処理中の関数スコープに属する記号表
 for id in table.sym_enumerator(type='int'):
     print(id)
 
-# SSA化された変数の一覧をリストで取得する。
+# すべての変数の一覧をリストで取得する。
 variables = [id for id in table.sym_enumerator(kind=('localvar', 'param', 'temp'))]
 
 # すべての記号をダンプする。

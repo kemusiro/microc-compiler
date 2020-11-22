@@ -1,5 +1,5 @@
 from parser import parse
-from function import Function, BasicBlock
+from classes import Function, BasicBlock
 from util import *
 
 _verbose = False

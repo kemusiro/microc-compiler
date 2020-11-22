@@ -1,6 +1,6 @@
 import ply.yacc as yacc
 from lexer import tokens
-from function import Function, Program, SymbolTable
+from classes import Function, Program, SymbolTable
 from util import *
 
 # プログラム全体

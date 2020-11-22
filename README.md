@@ -1,13 +1,15 @@
 # microc-compiler
 
 実験用のミニ言語MicroCコンパイラです。MicroC言語のソースコードから、LLVMが対応している任意のターゲットCPUの実行ファイルを作成します。
-Interface誌(CQ出版)2021年2月号掲載の記事で実験を行ったMicroCコンパイラのソースコードを公開しています。
-特徴は以下です。
+以下の特徴を持ちます。
 
 - LLVM IRのアセンブリコードを生成することにより、LLVMのバックエンドが持つ機能を活用できます。
 - 字句解析処理と構文解析処理をPython Lex-Yacc(PLY)を使って自動生成しています。
 - LLVM IRが前提とする静的単一代入(SSA)化を行うための計算処理を実装しており、コンパイラフロントエンドで行われている処理の基本を学習することができます。
 - 全編Pythonで実装することにより、コンパイラ内部状態のインタラクティブな把握が可能です。
+
+Interface誌(CQ出版)2021年2月号掲載の記事で実験を行ったMicroCコンパイラのソースコードを公開したものです。
+
 # 前提条件
 
 - Python Lex-Yacc 3.11
@@ -87,6 +89,40 @@ $ ./fib 10
 55
 ~~~
 
+生成されたLLVM IRは以下となります。
+
+```assembly
+define i32 @fib(i32 %n.1) {
+__entry:
+    %0 = icmp eq i32 %n.1, 0
+    br i1 %0, label %label3, label %label4
+label3:
+    br label %__end
+label4:
+    %1 = icmp eq i32 %n.1, 1
+    br i1 %1, label %label0, label %label1
+label0:
+    br label %__end
+label1:
+    %2 = sub i32 %n.1, 1
+    %3 = call i32 @fib (i32 %2)
+    %4 = sub i32 %n.1, 2
+    %5 = call i32 @fib (i32 %4)
+    %6 = add i32 %3, %5
+    br label %__end
+__end:
+    %.retval.5 = phi i32 [0, %label3], [1, %label0], [%6, %label1]
+    ret i32 %.retval.5
+}
+define i32 @app_main(i32 %n.1) {
+__entry:
+    %0 = call i32 @fib (i32 %n.1)
+    br label %__end
+__end:
+    ret i32 %0
+}
+```
+
 
 
 # MicroC言語仕様概要
@@ -103,6 +139,44 @@ MicroC言語はC言語のサブセットである。以下の機能を持つ。
 - 初期化付きの変数宣言は行えない。
 
 # MicroC言語内部表現
+
+## 記号表(SymbolTable)
+
+記号表は`SymbolTable`クラスで管理する。`SymbolTable`は以下の要素を持つ。
+
+- `scope` --  記号表の属するスコープ。現在関数とグローバルの2種類がある。関数スコープは関数名をスコープ名とし、グローバルスコープは`.global`をスコープ名とする。　
+- `table` -- 記号名をキー、記号の属性を値としてもつ辞書である。属性も辞書構造であり、記号の種類ごとに任意の属性をもつことができる。
+
+記号表のエントリの例を以下に示す。
+
+`{'x': {'kind': 'localvar', 'type': 'int'}}`
+
+対応している属性を以下に示す。
+
+| 属性       | 意味                                           | とりうる属性値                                               |
+| ---------- | ---------------------------------------------- | ------------------------------------------------------------ |
+| `'kind'`   | 記号の種別。すべての記号がもつ必須属性とする。 | `'localvar'`(局所変数)、`'temp'`(コンパイラ内で生成した一時変数)、`'ssavar'`(SSA化した変数)、`'func'`(関数名)、`'param'`(関数の仮引数)、`'label'`(ラベル名) |
+| `'type'`   | 変数の型、または関数の返却値型を表す。         | `'int'`、`'boolean'`                                         |
+| `'bb'`     | 変数が属する基本ブロック                       | ラベル名                                                     |
+| `'origin'` | SSA化された変数の元になった変数名              | 変数名                                                       |
+
+記号表のエントリの一覧は`sym_enumerator()`ジェネレータにより任意の属性ごとに生成できる。複数の属性のいずれかを指定する場合はタプルを指定する。
+
+```Python
+# 'int'型の変数の一覧を印字する。
+table = 処理中の関数スコープに属する記号表
+for id in table.sym_enumerator(type='int'):
+    print(id)
+
+# SSA化された変数の一覧をリストで取得する。
+variables = [id for id in table.sym_enumerator(kind=('localvar', 'param', 'temp'))]
+
+# すべての記号をダンプする。
+for sym in table.sym_enumerator():
+    print(sym)
+```
+
+
 
 ## 内部コード
 

@@ -8,8 +8,6 @@
 - LLVM IRが前提とする静的単一代入(SSA)化を行うための計算処理を実装しており、コンパイラフロントエンドで行われている処理の基本を学習することができます。
 - 全編Pythonで実装することにより、コンパイラ内部状態のインタラクティブな把握が可能です。
 
-Interface誌(CQ出版)2021年2月号掲載の記事で実験を行ったMicroCコンパイラのソースコードを公開したものです。
-
 # 前提条件
 
 - Python Lex-Yacc 3.11
@@ -120,6 +118,27 @@ __entry:
     br label %__end
 __end:
     ret i32 %0
+}
+```
+
+また生成したLLVM IRの関数を実行するためのランタイムコードとして以下のコードが自動生成されます。コマンドライン引数の数は、`app_main`関数の引数の数と同じものになります。
+
+```C
+#include <stdio.h>
+#include <stdlib.h>
+
+extern int app_main(int arg1);
+
+int main(int argc, char *argv[])
+{
+    int result;
+    if (argc <= 1) {
+        printf("%s arg1\n", argv[0]);
+        return -1;
+    }
+    result = app_main(atoi(argv[1]));
+    printf("%d\n", result);
+    return 0;
 }
 ```
 
